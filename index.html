@@ -68,9 +68,13 @@ tbody tr.sl td{background:color-mix(in srgb,var(--pr) 12%,transparent)}
 .msp .mh{display:flex;justify-content:space-between;padding:4px 8px;color:var(--mu);font-size:12px}
 .cnt{background:var(--pr);color:var(--prt);border-radius:99px;padding:0 7px;font-size:11px;font-weight:700;margin-left:6px}
 :root{--bl:#2563eb}:root[data-theme="dark"]{--bl:#5ea8ff}
+#login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.lc{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:24px;width:100%;max-width:380px}.lc input{width:100%;margin-bottom:10px}
+#sync,#who{font-size:12px;opacity:.85}#sync[data-s="err"]{color:#ffb4b4;opacity:1}.top{flex-wrap:wrap}
+.ro #add,.ro #impD,.ro #expP,.ro #addK,.ro #impK,.ro #addg,.ro #impC,.ro #addS,.ro #impS,.ro .ib.e,.ro .ib.x,.ro #ckall,.ro [data-ck]{display:none!important}
 .empty{padding:30px;text-align:center;color:var(--mu)}
 </style></head><body>
-<div class="top"><h1>Quản lý sửa chữa thiết bị</h1><button class="tg" id="th"></button></div>
+<div class="top"><h1>Quản lý sửa chữa thiết bị</h1><span id="sync"></span><span id="who"></span><button class="btn s" id="logout">Đăng xuất</button><button class="tg" id="th"></button></div>
 <div class="wrap">
 <div class="tabs"><button class="tab on" data-t="dev">Thiết bị sửa chữa</button><button class="tab" data-t="sku">Thiết bị (SKU)</button><button class="tab" data-t="cat">Danh mục dịch vụ</button><button class="tab" data-t="stk">Kho (Stock)</button></div>
 <section id="dev">
@@ -98,8 +102,11 @@ tbody tr.sl td{background:color-mix(in srgb,var(--pr) 12%,transparent)}
 </div>
 <div id="ov"><div id="md"></div></div>
 <div id="lb"></div><div id="cf"></div><div id="toast"></div>
+<div id="login"><div class="lc" id="lw">Đang tải…</div><form class="lc" id="lf" style="display:none"><h2 style="margin:0 0 4px">Đăng nhập</h2><div class="mu" style="margin-bottom:14px">Quản lý sửa chữa thiết bị</div><input id="lm" type="email" placeholder="Email" autocomplete="username" required><input id="lp" type="password" placeholder="Mật khẩu" autocomplete="current-password" required><button class="btn p" style="width:100%;justify-content:center" type="submit">Đăng nhập</button><div id="le" style="color:var(--er);margin-top:10px;min-height:18px"></div></form></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script>
 const KEY='sc_dash_v1';
 const ST=['Chờ tiếp nhận','Đang kiểm tra','Chờ báo giá','Đang sửa','Đang vận chuyển','Hoàn thành','Không sửa được','Đã trả kho','Đã thanh lý'];
@@ -117,7 +124,7 @@ function ask(msg,cb){const c=document.getElementById('cf');c.innerHTML=`<div cla
 const dupS=(n,id)=>S.stocks.some(k=>k.id!==id&&nz(k.name)===nz(n))&&(toast(`Kho “${n}” đã tồn tại`,1),true);
 const dupG=(n,id)=>S.groups.some(g=>g.id!==id&&nz(g.name)===nz(n))&&(toast(`Nhóm “${n}” đã tồn tại`,1),true);
 const KHO=['NG - IT HELPDESK - FLOOR 4 - 568 LUY BAN BICH','GENERAL - 170 QUOC LO 1A','Thiết bị - 568 LUY BAN BICH','Chưa tiếp nhận'];
-const uid=()=>Math.random().toString(36).slice(2,9);
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-5);
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const vnd=n=>(Number(n)||0).toLocaleString('vi-VN')+'đ';
 const tot=d=>(d.items||[]).reduce((a,i)=>a+(Number(i.price)||0),0);
@@ -132,11 +139,56 @@ g('Két tiền cashier',[['Thay ổ khóa',150000],['Thay mạch mở két',2500
 g('CPU',[['Thay RAM',500000],['Thay SSD',700000],['Thay nguồn',450000],['Thay main',1500000]]),
 g('NUC',[['Thay RAM',500000],['Thay SSD',700000],['Thay adapter',350000],['Vệ sinh, tra keo',200000]]),
 g('Màn hình máy tính',[['Thay nguồn/board nguồn',400000],['Thay đèn nền',500000],['Thay cáp tín hiệu',100000]])]}}
-let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(x){}
-if(!S||!S.groups)S=seed();
-S.stocks=S.stocks||[];S.skus=S.skus||[];
-{const M={'NG - GENERAL - 170 QUOC LO 1A':KHO[1],'Kho HC 588':KHO[2]};S.devices.forEach(d=>{if(M[d.khoGiu])d.khoGiu=M[d.khoGiu];if(d.status==='Đã trả kho HC')d.status='Đã trả kho'})}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(x){toast('Không lưu được: bộ nhớ trình duyệt đầy (thường do nhiều hình). Hãy xóa bớt hình.')}};
+let S={groups:[],stocks:[],skus:[],devices:[]};
+const TK=['groups','stocks','skus','devices'],BUCKET='device-images';
+const LAST={groups:new Map(),stocks:new Map(),skus:new Map(),devices:new Map()};
+let sb=null,me=null,chan=null,syncing=false,again=false,tmr=null;
+const canWrite=()=>!!me&&['editor','admin'].includes(me.role);
+const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v);
+const strip=o=>{const r={...o};delete r.id;return r};
+const chunk=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r};
+function setSync(st){const el=document.getElementById('sync');if(!el)return;el.textContent={ok:'✓ Đã đồng bộ',saving:'Đang lưu…',load:'Đang tải…',err:'⚠ Lỗi đồng bộ'}[st]||'';el.dataset.s=st}
+const save=()=>{if(!canWrite()){toast('Tài khoản chỉ có quyền xem.',1);loadAll();return}clearTimeout(tmr);setSync('saving');tmr=setTimeout(syncNow,350)};
+async function syncNow(){tmr=null;if(syncing){again=true;return}syncing=true;
+try{for(const t of TK){const cur=new Map(S[t].map(o=>[o.id,o])),L=LAST[t],ins=[],upd=[];
+cur.forEach((o,id)=>{const c=canon(strip(o));if(!L.has(id))ins.push({id,data:strip(o)});else if(L.get(id)!==c)upd.push({id,data:strip(o)})});
+const base=Date.now(),n=ins.length;ins.forEach((r,i)=>{r.created_at=new Date(base+(t==='devices'?n-i:i)).toISOString()});
+const del=[...L.keys()].filter(id=>!cur.has(id));
+for(const p of chunk(ins,300)){const{error}=await sb.from(t).upsert(p);if(error)throw error}
+for(const p of chunk(upd,300)){const{error}=await sb.from(t).upsert(p);if(error)throw error}
+for(const p of chunk(del,200)){const{error}=await sb.from(t).delete().in('id',p);if(error)throw error}
+cur.forEach((o,id)=>L.set(id,canon(strip(o))));del.forEach(id=>L.delete(id))}
+setSync('ok')}catch(err){console.error(err);setSync('err');toast('Lưu thất bại: '+(err.message||err)+'. Đang tải lại dữ liệu từ máy chủ…',1);try{await loadAll()}catch(x){}}
+finally{syncing=false;if(again){again=false;syncNow()}}}
+async function fetchAll(t){let out=[],from=0;for(;;){const{data,error}=await sb.from(t).select('id,data,created_at').order('created_at',{ascending:t!=='devices'}).range(from,from+999);if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;from+=1000}return out}
+async function loadAll(){setSync('load');for(const t of TK){const rows=await fetchAll(t);S[t]=rows.map(r=>({...r.data,id:r.id}));LAST[t]=new Map(rows.map(r=>[r.id,canon(r.data)]))}setSync('ok');render()}
+const rr=(()=>{let h;return()=>{clearTimeout(h);h=setTimeout(render,150)}})();
+function onRT(t,p){const L=LAST[t];
+if(p.eventType==='DELETE'){const id=p.old&&p.old.id;if(!id)return;S[t]=S[t].filter(o=>o.id!==id);L.delete(id);rr();return}
+const r=p.new,c=canon(r.data);if(L.get(r.id)===c)return;L.set(r.id,c);const o={...r.data,id:r.id},i=S[t].findIndex(x=>x.id===r.id);
+if(i>=0)S[t][i]=o;else if(t==='devices')S[t].unshift(o);else S[t].push(o);rr()}
+function subscribe(){if(chan)sb.removeChannel(chan);chan=sb.channel('sc-sync');TK.forEach(t=>chan.on('postgres_changes',{event:'*',schema:'public',table:t},p=>onRT(t,p)));
+chan.subscribe(st=>{if(st==='CHANNEL_ERROR'||st==='TIMED_OUT')setSync('err')})}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sb&&me&&!syncing&&!tmr)loadAll().catch(()=>{})});
+/* ---- hình ảnh (Supabase Storage) ---- */
+const URLC={};setInterval(()=>{for(const k in URLC)delete URLC[k]},50*60*1000);
+async function uploadImgs(list,did){const out=[];for(const x of list){if(typeof x==='string'&&x.startsWith('data:')){const blob=await(await fetch(x)).blob(),path=`${did}/${uid()}.jpg`,{error}=await sb.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg'});if(error)throw error;out.push(path)}else out.push(x)}return out}
+function dropImgs(list){const p=(list||[]).filter(x=>x&&!x.startsWith('data:'));if(p.length&&sb)sb.storage.from(BUCKET).remove(p).then(()=>{},()=>{})}
+async function sign(list){const need=list.filter(x=>!x.startsWith('data:')&&!URLC[x]);if(need.length&&sb){const{data}=await sb.storage.from(BUCKET).createSignedUrls(need,3600);(data||[]).forEach(r=>{if(r.signedUrl)URLC[r.path]=r.signedUrl})}return list.map(x=>x.startsWith('data:')?x:(URLC[x]||''))}
+function saveFile(name,data){const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+/* ---- đăng nhập ---- */
+function showLogin(msg,cfgErr){const g=id=>document.getElementById(id);g('login').style.display='flex';if(cfgErr){g('lw').style.display='block';g('lw').textContent=msg;g('lf').style.display='none'}else{g('lw').style.display='none';g('lf').style.display='block';g('le').textContent=msg||''}}
+const hideLogin=()=>{document.getElementById('login').style.display='none'};
+function resetData(){S={groups:[],stocks:[],skus:[],devices:[]};TK.forEach(t=>{LAST[t]=new Map()});SEL.clear();me=null;render()}
+async function start(user){hideLogin();setSync('load');
+const{data:pr}=await sb.from('profiles').select('role,email').eq('id',user.id).maybeSingle();
+me={id:user.id,email:user.email,role:(pr&&pr.role)||'viewer'};document.getElementById('who').textContent=`${me.email} · ${me.role}`;document.body.classList.toggle('ro',!canWrite());
+try{await loadAll();subscribe();if(canWrite()&&TK.every(t=>!S[t].length)){S.groups=seed().groups;await syncNow()}}catch(err){setSync('err');toast('Không tải được dữ liệu: '+(err.message||err),1)}}
+async function boot(){const cfg=window.APP_CONFIG||{};
+if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY||/YOUR/i.test(cfg.SUPABASE_URL+cfg.SUPABASE_ANON_KEY)||typeof supabase==='undefined'){showLogin('Chưa cấu hình Supabase. Hãy mở file config.js và điền SUPABASE_URL, SUPABASE_ANON_KEY (xem README.md).',true);return}
+sb=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'){me=null;showLogin()}});
+const{data}=await sb.auth.getSession();if(data&&data.session)await start(data.session.user);else showLogin()}
 const $=id=>document.getElementById(id);
 const gname=id=>(S.groups.find(g=>g.id===id)||{}).name||'—';
 
@@ -186,12 +238,12 @@ const lk=(u,t)=>{if(!u)return'<span class="mu">—</span>';const ok=/^https?:\/\
 $('q').oninput=render;$('qs').oninput=()=>renderSku();
 $('tb').onclick=ev=>{const t=ev.target;
 if(t.dataset.v)view(t.dataset.v);if(t.dataset.e)edit(t.dataset.e);
-if(t.dataset.x){const x=t.dataset.x;ask('Xóa dòng thiết bị này?',()=>{S.devices=S.devices.filter(d=>d.id!==x);save();render()})}};
+if(t.dataset.x){const x=t.dataset.x;ask('Xóa dòng thiết bị này?',()=>{const dv=S.devices.find(d=>d.id===x);S.devices=S.devices.filter(d=>d.id!==x);dropImgs(dv&&dv.images);save();render()})}};
 $('add').onclick=()=>edit();
 
-function view(id){const d=S.devices.find(x=>x.id===id);
+async function view(id){const d=S.devices.find(x=>x.id===id);
 const rw=(l,v,w)=>`<div${w?' class="w"':''}><div class="mu">${l}</div><div>${v||'<span class="mu">—</span>'}</div></div>`;
-const col=SC[d.status]||'--mu',im=d.images||[];vi=im;
+const col=SC[d.status]||'--mu',im=await sign(d.images||[]);vi=im;
 open(`<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h3 style="margin:0 0 4px;font-size:16px">${e(d.tenTB)}</h3><div class="mu">${e(gname(d.nhom))} · Seri: ${e(d.seri)||'—'}</div></div><button class="ib x" data-close="1" title="Đóng">${IC.x}</button></div>
 <div class="fg" style="margin:14px 0">
 ${rw('SKU',e(d.sku))}${d.tag?rw('Tag',`<span class="tagc" style="margin:0">↩ Sửa xong trả về kho chuyển về: ${e(d.khoHu||'(chưa chọn)')}</span>`):''}${rw('Trạng thái',`<span class="badge" style="color:var(${col});background:color-mix(in srgb,var(${col}) 14%,transparent)">${e(d.status)}</span>`)}${rw('Phương án sửa chữa',e(d.phuongAn))}
@@ -224,7 +276,7 @@ function lb(){$('lb').innerHTML=`<img src="${lbL[lbI]}" alt=""><button class="lb
 $('lb').onclick=ev=>{const t=ev.target.dataset.lb;if(t){lbI=(lbI+ +t+lbL.length)%lbL.length;lb()}else $('lb').style.display='none'};
 document.addEventListener('keydown',ev=>{if($('lb').style.display!=='flex')return;if(ev.key==='Escape')$('lb').style.display='none';if(lbL.length>1&&ev.key==='ArrowRight'){lbI=(lbI+1)%lbL.length;lb()}if(lbL.length>1&&ev.key==='ArrowLeft'){lbI=(lbI-1+lbL.length)%lbL.length;lb()}});
 const shrink=f=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=im.width*k;cv.height=im.height*k;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);r(cv.toDataURL('image/jpeg',.7))};im.onerror=()=>r(null);im.src=fr.result};fr.onerror=()=>r(null);fr.readAsDataURL(f)});
-const rimg=()=>{$('imgs').innerHTML=ti.map((u,k)=>`<div class="th"><img src="${u}" alt=""><button class="ib x" title="Xóa hình" data-ri="${k}">${IC.x}</button></div>`).join('')||'<span class="mu">Chưa có hình</span>'};
+const rimg=async()=>{const U=await sign(ti);$('imgs').innerHTML=ti.map((u,k)=>`<div class="th"><img src="${U[k]}" alt=""><button class="ib x" title="Xóa hình" data-ri="${k}">${IC.x}</button></div>`).join('')||'<span class="mu">Chưa có hình</span>'};
 function edit(id){const d=id?S.devices.find(x=>x.id===id):{status:ST[0],phuongAn:PA[0],items:[],khoGiu:KHO[3],ngayNhan:new Date().toISOString().slice(0,10)};
 tmp=JSON.parse(JSON.stringify(d.items||[]));
 const f=(k,l,t='text',cls='')=>`<label class="${cls}">${l}<input id="f_${k}" type="${t}" value="${e(d[k])}"></label>`;
@@ -256,9 +308,10 @@ $('f_sku').onchange=()=>fillFrom('sku');$('f_tenTB').onchange=()=>fillFrom('tenT
 $('addp').onclick=()=>{const g=S.groups.find(x=>x.id===$('f_nhom').dataset.v),s=g&&g.services.find(x=>x.id===$('pick').value);if(s){tmp.push({name:s.name,price:s.price});ri()}};
 $('addc').onclick=()=>{tmp.push({name:'',price:0});ri()};
 ri();ti=JSON.parse(JSON.stringify(d.images||[]));rimg();$('imgb').onclick=()=>$('imgin').click();$('imgin').onchange=async ev=>{for(const f of ev.target.files){const u=await shrink(f);if(u)ti.push(u)}ev.target.value='';rimg()};
-$('ok').onclick=()=>{const v=k=>{const el=$('f_'+k);return(el.dataset.v!==undefined?el.dataset.v:el.value).trim()};if(!v('tenTB')){toast('Nhập tên thiết bị');return}
-const o={id:d.id||uid(),items:tmp.filter(i=>i.name||i.price),images:ti};
-['tenTB','nhom','seri','khoHu','ngayNhan','khoGiu','ngayTra','phuongAn','status','ncc','moTa','linkKien','linkTask','phieuIT','sku'].forEach(k=>o[k]=v(k));o.tag=$('f_tag').checked;
+$('ok').onclick=async()=>{const v=k=>{const el=$('f_'+k);return(el.dataset.v!==undefined?el.dataset.v:el.value).trim()};if(!v('tenTB')){toast('Nhập tên thiết bị',1);return}
+const btn=$('ok');btn.disabled=true;const did=d.id||uid();let imgs;try{imgs=await uploadImgs(ti,did)}catch(err){toast('Tải hình thất bại: '+(err.message||err),1);btn.disabled=false;return}
+const o={id:did,items:tmp.filter(i=>i.name||i.price),images:imgs};
+['tenTB','nhom','seri','khoHu','ngayNhan','khoGiu','ngayTra','phuongAn','status','ncc','moTa','linkKien','linkTask','phieuIT','sku'].forEach(k=>o[k]=v(k));o.tag=$('f_tag').checked;dropImgs((d.images||[]).filter(x=>!imgs.includes(x)));
 if(id)S.devices=S.devices.map(x=>x.id===id?o:x);else S.devices.unshift(o);save();closeM();render()}}
 function ri(){$('its').innerHTML=tmp.map((i,k)=>`<div class="it"><input data-n="${k}" value="${e(i.name)}" placeholder="Tên hạng mục"><input data-p="${k}" type="number" min="0" value="${i.price}"><button class="ib x" title="Xóa" data-r="${k}">${IC.del}</button></div>`).join('')||'<div class="mu" style="margin-bottom:6px">Chưa có hạng mục</div>';
 $('sum').textContent=vnd(tmp.reduce((a,i)=>a+(Number(i.price)||0),0))}
@@ -318,7 +371,7 @@ const noLib=()=>typeof XLSX==='undefined'&&(toast('Chưa tải được thư vi�
 async function xl(name,sheets){if(noLib())return;const wb=XLSX.utils.book_new();
 for(const[n,a]of Object.entries(sheets)){const ws=XLSX.utils.aoa_to_sheet(a);ws['!cols']=a[0].map(h=>({wch:Math.max(16,String(h).length+4)}));XLSX.utils.book_append_sheet(wb,ws,n)}
 const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-try{const dl=await claude.use('downloads');if(!dl)throw 0;await dl.save({filename:name,data})}catch(x){if(!x||x.code!=='declined')toast('Không tải được file trong chế độ xem này.')}}
+saveFile(name,data)}
 function pickFile(cb){const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls,.csv';
 i.onchange=async()=>{const f=i.files[0];if(!f||noLib())return;try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
 const a=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}).slice(1).filter(r=>r.some(c=>String(c).trim()));cb(a)}catch(x){toast('Không đọc được file Excel.')}};i.click()}
@@ -374,7 +427,7 @@ $('ckall').onchange=ev=>{rows().forEach(d=>ev.target.checked?SEL.add(d.id):SEL.d
 const phieuLines=ds=>{const m=new Map();ds.forEach(d=>{const sku=String(d.sku).trim(),k=nz(sku);if(!m.has(k)){const c0=S.skus.find(x=>nz(x.sku)===k);m.set(k,{sku,name:(c0&&c0.name)||d.tenTB,qty:0})}m.get(k).qty++});return[...m.values()]};
 async function savePhieu(to,lines){if(typeof JSZip==='undefined'){toast('Chưa tải được thư viện tạo file (cần kết nối mạng).',1);return false}
 const data=await buildPhieu(JSZip,to,lines,KHO[0]);
-try{const dl=await claude.use('downloads');if(!dl)throw 0;await dl.save({filename:'Phieu-IT-tra-kho-'+today()+'.xlsx',data});return true}catch(x){if(!x||x.code!=='declined')toast('Không tải được file trong chế độ xem này.',1);return false}}
+saveFile('Phieu-IT-tra-kho-'+today()+'.xlsx',data);return true}
 $('expP').onclick=()=>{const ds=S.devices.filter(d=>SEL.has(d.id));if(!ds.length){toast('Hãy tick chọn thiết bị cần trả kho',1);return}
 const ok=ds.filter(d=>String(d.sku||'').trim()),no=ds.length-ok.length;
 if(!ok.length){toast('Các thiết bị đã chọn chưa có SKU. Hãy bổ sung SKU trước khi xuất phiếu.',1);return}
@@ -393,5 +446,7 @@ const THK='sc_theme2';
 function theme(t){document.documentElement.dataset.theme=t;$('th').innerHTML=t==='dark'?IC.sun:IC.moon;$('th').title=t==='dark'?'Chuyển sang giao diện sáng':'Chuyển sang giao diện tối';try{localStorage.setItem(THK,t)}catch(x){}}
 $('th').onclick=()=>theme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 {let t0='dark';try{t0=localStorage.getItem(THK)||'dark'}catch(x){}theme(t0)}
-render();
+$('lf').onsubmit=async ev=>{ev.preventDefault();$('le').textContent='';const{data,error}=await sb.auth.signInWithPassword({email:$('lm').value.trim(),password:$('lp').value});if(error){$('le').textContent='Đăng nhập thất bại: '+error.message;return}$('lp').value='';await start(data.user)};
+$('logout').onclick=async()=>{if(chan){sb.removeChannel(chan);chan=null}clearTimeout(tmr);tmr=null;await sb.auth.signOut();resetData();showLogin()};
+render();boot();
 </script></body></html>
